@@ -20,12 +20,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-gu7v1qwqiy+e+ov_-4m0gn0592^m0p7@2f92t^n_#une@^b1n6'
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -86,10 +86,14 @@ WSGI_APPLICATION = 'egbin_ssp.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'egbin-ssp',
-        'USER':'roli',
-        'PASSWORD':'october7',
+        'NAME': os.environ.get('DB_NAME'),
+        'USER':os.environ.get('DB_USER'),
+        'PASSWORD':os.environ.get('DB_PASSWORD'),
+        'HOST': os.environ.get('DB_HOST'),  # e.g., 'your_server_name.postgres.database.azure.com'
         'PORT':'5432',
+        'OPTIONS': {
+            'sslmode': 'require',  # Ensure SSL mode is enabled
+        },
     }
 }
 
