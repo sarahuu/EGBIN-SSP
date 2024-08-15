@@ -12,6 +12,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from rest_framework.permissions import AllowAny
 
 
 
@@ -22,6 +23,8 @@ User = get_user_model()
 
 @extend_schema(tags=['User Management'])
 class UserView(APIView):
+    permission_classes = []
+
 
     @extend_schema(
     tags=['User Management'],
@@ -317,6 +320,9 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     }
 )
 class MicrosoftTokenValidationView(APIView):
+    permission_classes=[AllowAny]
+
+
     def post(self, request):
         token = request.data.get('token')
 
