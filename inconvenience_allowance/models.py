@@ -21,11 +21,11 @@ class InconvenienceRequest(models.Model):
     STATUS_CHOICES = [
         ('draft', 'Draft'),
         ('submitted', 'Submitted'),
-        ('manager_approval', 'Manager Approval'),
-        ('work_in_review', 'Work in Review'),
-        ('manager_approval_2', '2nd Manager Approval'),
+        ('manager_approved', 'Manager Approved'),
+        ('work_done', 'Work Done'),
         ('hr_approval', 'HR Approval'),
-        ('completed', 'Completed')
+        ('completed', 'Completed'),
+        ('rejected','Rejected')
     ]
     request_id = models.CharField(max_length=100, unique=True)
     title = models.CharField(max_length=100)
@@ -60,12 +60,10 @@ class InconvenienceRequest(models.Model):
     def transition_status(self, new_status):
         valid_transitions = {
             'draft': ['submitted'],
-            'submitted': ['manager_approval'],
-            'manager_approval': ['work_in_progress'],
-            'work_in_progress': ['work_in_review'],
-            'work_in_review': ['manager_approval_2'],
-            'manager_approval_2': ['hr_approval'],
-            'hr_approval': ['completed']
+            'submitted': ['manager_approved','rejected'],
+            'manager_approved': ['work_done'],
+            'work_done': ['hr_approval'],
+            'hr_approval': ['completed'],
         }
 
         if new_status not in valid_transitions.get(self.status, []):

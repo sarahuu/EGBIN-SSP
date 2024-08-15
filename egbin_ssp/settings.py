@@ -91,9 +91,9 @@ DATABASES = {
         'PASSWORD':os.environ.get('DB_PASSWORD'),
         'HOST': os.environ.get('DB_HOST'),  # e.g., 'your_server_name.postgres.database.azure.com'
         'PORT':'5432',
-        'OPTIONS': {
-            'sslmode': 'require',  # Ensure SSL mode is enabled
-        },
+        # 'OPTIONS': {
+        #     'sslmode': 'require',  # Ensure SSL mode is enabled
+        # },
     }
 }
 

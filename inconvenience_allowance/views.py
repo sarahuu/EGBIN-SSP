@@ -6,7 +6,9 @@ from .models import InconvenienceRequest, InconvenienceRequestLine, Day
 from .serializers import InconvenienceRequestSerializer,InconvenienceRequestLineSerializer, DaySerializer
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import action
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema
+from .permissions import IsDepartmentRep, IsEmployee, IsHR, IsInDepartment, IsLineManager
+from rest_framework.exceptions import PermissionDenied
 
 @extend_schema(tags=['Days'])
 class DayViewSet(viewsets.ModelViewSet):
@@ -85,6 +87,9 @@ class InconvenienceRequestView(APIView):
         responses={201: InconvenienceRequestSerializer},
     )
     def post(self, request):
+        if not request.user.groups.filter(name='Department Representatives').exists():
+            return Response({'detail': 'Not permitted'}, status=status.HTTP_403_FORBIDDEN)
+        
         data = request.data
         serializer = InconvenienceRequestSerializer(data=data, context={'request': request})
         if serializer.is_valid():
@@ -103,7 +108,19 @@ class InconvenienceRequestView(APIView):
         }
     )
     def get(self, request):
-        inconvenience_requests = InconvenienceRequest.objects.all()
+
+        if request.user.groups.filter(name='HR').exists():
+            # HR can view all records
+            inconvenience_requests = InconvenienceRequest.objects.filter(status='draft')
+        elif request.user.groups.filter(name='Line Managers').exists() or \
+             request.user.groups.filter(name='Employees').exists():
+            # Other roles can view only their department records
+            inconvenience_requests = InconvenienceRequest.objects.filter(department=request.user.department).exclude(status='draft')
+        elif request.user.groups.filter(name='Department Representatives').exists():
+            inconvenience_requests = InconvenienceRequest.objects.filter(department=request.user.department)
+        else:
+            return Response({'detail': 'Not permitted'}, status=status.HTTP_403_FORBIDDEN)
+        
         serializer = InconvenienceRequestSerializer(inconvenience_requests, many=True)
         return Response(serializer.data)
 
@@ -125,7 +142,29 @@ class InconvenienceRequestDetailView(APIView):
     )
     def get(self, request, pk):
         inconvenience_request = get_object_or_404(InconvenienceRequest, pk=pk)
-        serializer = InconvenienceRequestSerializer(inconvenience_request)
+        if request.user.groups.filter(name='HR').exists():
+            # HR can view all requests
+            if inconvenience_request.status == 'draft':
+                raise PermissionDenied("Not permitted to access this request.")
+            serializer = InconvenienceRequestSerializer(inconvenience_request)
+
+        elif request.user.groups.filter(name='Line Managers').exists():
+            # Department Reps and Line Managers can view requests for their department
+            if inconvenience_request.department != request.user.department or inconvenience_request.status == 'draft':
+                raise PermissionDenied("Not permitted to access this request.")
+            serializer = InconvenienceRequestSerializer(inconvenience_request)
+
+        elif request.user.groups.filter(name='Department Representatives').exists():
+            # Department Reps and Line Managers can view requests for their department
+            if inconvenience_request.department != request.user.department:
+                raise PermissionDenied("Not permitted to access this request.")
+            serializer = InconvenienceRequestSerializer(inconvenience_request)
+            
+        else:
+            # Employees can view their own requests if they belong to the same department
+            if inconvenience_request.department != request.user.department or inconvenience_request.status=="draft":
+                raise PermissionDenied("Not permitted to access this request.")
+            serializer = InconvenienceRequestSerializer(inconvenience_request)
         return Response(serializer.data)
 
 
@@ -145,6 +184,27 @@ class InconvenienceRequestDetailView(APIView):
             return Response({"detail": "ID is required for updating"}, status=status.HTTP_400_BAD_REQUEST)
         
         inconvenience_request = get_object_or_404(InconvenienceRequest, pk=pk)
+
+        # Check permissions
+        user = request.user
+        if not (user.groups.filter(name='Department Representatives').exists() or 
+                user.groups.filter(name='Line Managers').exists() or 
+                user.groups.filter(name='HR').exists()):
+            raise PermissionDenied("Not permitted to update records.")
+        
+        # Check if user is authorized to update this record
+        if not (user.groups.filter(name='HR').exists() or 
+                (user.groups.filter(name='Department Representatives').exists() and 
+                inconvenience_request.department == user.department) or 
+                (user.groups.filter(name='Line Managers').exists() and 
+                inconvenience_request.department == user.department)):
+            raise PermissionDenied("Not permitted to update this request.")
+        
+        #ensure only department rep can edit request when in draft state
+        if not user.groups.filter(name='Department Representatives') and inconvenience_request.status == 'draft':
+            raise PermissionDenied("Not permitted to update this request.")
+        
+        # Serialize the data
         serializer = InconvenienceRequestSerializer(inconvenience_request, data=request.data, partial=True)
         
         if serializer.is_valid():
@@ -168,6 +228,23 @@ class InconvenienceRequestDetailView(APIView):
             return Response({"detail": "ID is required for deletion"}, status=status.HTTP_400_BAD_REQUEST)
         
         inconvenience_request = get_object_or_404(InconvenienceRequest, pk=pk)
+        user = request.user
+        if not (user.groups.filter(name='Department Representatives').exists() or 
+                user.groups.filter(name='Line Managers').exists() or 
+                user.groups.filter(name='HR').exists()):
+            raise PermissionDenied("Not permitted to delete records.")
+        
+        if not (user.groups.filter(name='HR').exists() or 
+                (user.groups.filter(name='Department Representatives').exists() and 
+                inconvenience_request.department == user.department) or 
+                (user.groups.filter(name='Line Managers').exists() and 
+                inconvenience_request.department == user.department)):
+            raise PermissionDenied("Not permitted to delete this request.")
+
+        #ensure only department rep can delete request when in draft state
+        if not user.groups.filter(name='Department Representatives') and inconvenience_request.status == 'draft':
+            raise PermissionDenied("Not permitted to delete this request.")
+
         inconvenience_request.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -203,7 +280,33 @@ class InconvenienceRequestLineView(APIView):
         }
     )
     def get(self, request):
-        inconvenience_request_lines = InconvenienceRequestLine.objects.all()
+        user = request.user
+
+        # Check for HR role
+        if user.groups.filter(name='HR').exists():
+            # HR can view all request lines
+            inconvenience_request_lines = InconvenienceRequestLine.objects.all().exclude(status='draft')
+        
+        # Check for Line Managers roles
+        elif user.groups.filter(name='Line Managers').exists():
+            # Filter request lines by department
+
+            inconvenience_request_lines = InconvenienceRequestLine.objects.filter(department=user.department).exclude(status="draft")
+        
+        # Check for Department Manager roles
+        elif user.groups.filter(name='Department Representatives').exists():
+            # Filter request lines by department
+            inconvenience_request_lines = InconvenienceRequestLine.objects.filter(department=user.department)
+        
+        # Check for Employee role
+        elif user.groups.filter(name='Employees').exists():
+            # Filter request lines by department
+            inconvenience_request_lines = InconvenienceRequestLine.objects.filter(department=user.department).exclude(status="draft")
+        
+        else:
+            # If user role is not valid, return Forbidden response
+            return Response({"detail": "Not permitted to view request lines."}, status=status.HTTP_403_FORBIDDEN)
+        
         serializer = InconvenienceRequestLineSerializer(inconvenience_request_lines, many=True)
         return Response(serializer.data)
 
@@ -235,10 +338,31 @@ class InconvenienceRequestLineDetailView(APIView):
         except InconvenienceRequest.DoesNotExist:
             return Response({'detail': 'Inconvenience Request not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        data = request.data
-        data['inconvenience_request'] = inconvenience_request.id  # Link to the inconvenience request
 
-        serializer = InconvenienceRequestLineSerializer(data=data)
+        # Permission check
+        user = request.user
+        if not (user.groups.filter(name='Department Representatives').exists() or 
+                user.groups.filter(name='Line Managers').exists() or 
+                user.groups.filter(name='HR').exists()):
+            return Response({"detail": "Not permitted to create request lines."}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Ensure the user is authorized to create a request line for this inconvenience request
+        if not (user.groups.filter(name='HR').exists() or 
+                (user.groups.filter(name='Department Representatives').exists() and 
+                inconvenience_request.department == user.department) or 
+                (user.groups.filter(name='Line Managers').exists() and 
+                inconvenience_request.department == user.department)):
+            return Response({"detail": "Not permitted to create a request line for this request."}, status=status.HTTP_403_FORBIDDEN)
+        
+        
+        #ensure that only department rep can create inconvenience line when the request is in draft stage
+        if not user.groups.filter(name="Department Representatives").exists() and inconvenience_request.status == "draft":
+            return Response({"detail": "Not permitted to create a request line for this request."}, status=status.HTTP_403_FORBIDDEN)
+        
+        data = request.data
+        # data['inconvenience_request'] = inconvenience_request.id  # Link to the inconvenience request
+
+        serializer = InconvenienceRequestLineSerializer(data=data, context={'inconvenience_request_id': inconvenience_request.id})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -255,9 +379,33 @@ class InconvenienceRequestLineDetailView(APIView):
         }
     )
     def get(self, request, pk):
+        # Retrieve the specific Inconvenience Request Line
         inconvenience_request_line = get_object_or_404(InconvenienceRequestLine, pk=pk)
-        serializer = InconvenienceRequestLineSerializer(inconvenience_request_line)
-        return Response(serializer.data)
+        
+        # Permission check
+        user = request.user
+
+        if inconvenience_request_line.inconvenience_request.status == 'draft' and not user.groups.filter(name="Department Representatives"):
+            return Response({"detail": "Not permitted to view this request line."}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if the user is HR or is related to the department of the request line
+        if user.groups.filter(name='HR').exists():
+            # HR can view all request lines
+            serializer = InconvenienceRequestLineSerializer(inconvenience_request_line)
+            return Response(serializer.data)
+        
+        if user.groups.filter(name='Department Representatives').exists() or \
+        user.groups.filter(name='Line Managers').exists() or \
+        user.groups.filter(name='Employees').exists():
+            # Check if the request line belongs to the user's department
+            if inconvenience_request_line.department == user.department:
+                serializer = InconvenienceRequestLineSerializer(inconvenience_request_line)
+                return Response(serializer.data)
+            else:
+                return Response({"detail": "Not permitted to view this request line."}, status=status.HTTP_403_FORBIDDEN)
+        
+        # If user role is not valid, return Forbidden response
+        return Response({"detail": "Not permitted to view request lines."}, status=status.HTTP_403_FORBIDDEN)
 
 
     @extend_schema(
@@ -276,8 +424,28 @@ class InconvenienceRequestLineDetailView(APIView):
             return Response({"detail": "ID is required for updating"}, status=status.HTTP_400_BAD_REQUEST)
         
         inconvenience_request_line = get_object_or_404(InconvenienceRequestLine, pk=pk)
-        serializer = InconvenienceRequestLineSerializer(inconvenience_request_line, data=request.data, partial=True)
+        # Permission check
+        user = request.user
+
+        if inconvenience_request_line.inconvenience_request.status == 'draft' and not user.groups.filter(name="Department Representatives"):
+            return Response({"detail": "Not permitted to view this request line."}, status=status.HTTP_403_FORBIDDEN)
         
+        if user.groups.filter(name='HR').exists():
+            # HR can update any request line
+            serializer = InconvenienceRequestLineSerializer(inconvenience_request_line, data=request.data, partial=True)
+        
+        elif user.groups.filter(name='Department Representatives').exists() or \
+            user.groups.filter(name='Line Managers').exists():
+            # Check if the request line belongs to the user's department
+            if inconvenience_request_line.department == user.department:
+                serializer = InconvenienceRequestLineSerializer(inconvenience_request_line, data=request.data, partial=True)
+            else:
+                return Response({"detail": "Not permitted to update this request line."}, status=status.HTTP_403_FORBIDDEN)
+    
+        else:
+            # Employees cannot update request lines
+            return Response({"detail": "Not permitted to update request lines."}, status=status.HTTP_403_FORBIDDEN)
+            
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -300,9 +468,31 @@ class InconvenienceRequestLineDetailView(APIView):
             return Response({"detail": "ID is required for deletion"}, status=status.HTTP_400_BAD_REQUEST)
         
         inconvenience_request_line = get_object_or_404(InconvenienceRequestLine, pk=pk)
-        inconvenience_request_line.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    # Permission check
+        user = request.user
+        
+        if inconvenience_request_line.inconvenience_request.status == 'draft' and not user.groups.filter(name="Department Representatives"):
+            return Response({"detail": "Not permitted to view this request line."}, status=status.HTTP_403_FORBIDDEN)
+        
+        if user.groups.filter(name='HR').exists():
+            # HR can delete any request line
+            inconvenience_request_line.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        
+        if user.groups.filter(name='Department Representatives').exists() or \
+        user.groups.filter(name='Line Managers').exists():
+            # Check if the request line belongs to the user's department
+            if inconvenience_request_line.department == user.department:
+                inconvenience_request_line.delete()
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            else:
+                return Response({"detail": "Not permitted to delete this request line."}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Employees cannot delete request lines
+        return Response({"detail": "Not permitted to delete request lines."}, status=status.HTTP_403_FORBIDDEN)
     
+
+
 
 
 @extend_schema(tags=['Inconvenience Request'])
@@ -314,7 +504,7 @@ class TransitionStatusView(APIView):
         operation_id="Move an inconvenience request from stage to stage",
         summary="Move an inconvenience request from stage to stage",
         description="Move an inconvenience request from stage to stage",
-        request=InconvenienceRequestLineSerializer,
+        # request=InconvenienceRequestLineSerializer,
         responses={
             201: InconvenienceRequestLineSerializer,
             400: "Bad Request - Validation failed",
@@ -323,23 +513,46 @@ class TransitionStatusView(APIView):
     )
 
     def post(self, request, pk):
+        if not pk:
+            return Response({"error": "ID is required for updating status"}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
             request_obj = InconvenienceRequest.objects.get(pk=pk)
         except InconvenienceRequest.DoesNotExist:
             return Response({'error': 'InconvenienceRequest not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        user = request.user
         new_status = request.data.get('status')
+
         if new_status not in dict(InconvenienceRequest.STATUS_CHOICES):
             return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            request_obj.transition_status(new_status)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        current_status = request_obj.status
+        
+        if user.groups.filter(name='Department Representatives').exists():
+            if current_status == 'draft' and new_status == 'submitted':
+                request_obj.transition_status(new_status)
+            elif current_status == 'manager_approved' and new_status == 'work_done':
+                request_obj.transition_status(new_status)
+            else:
+                return Response({"error": "Not permitted to transition to this status"}, status=status.HTTP_403_FORBIDDEN)
+        
+        elif user.groups.filter(name='Line Managers').exists():
+            if current_status == 'submitted' and new_status == 'manager_approved':
+                request_obj.transition_status(new_status)
+            elif current_status == 'work_done' and new_status == 'hr_approval':
+                request_obj.transition_status(new_status)
+            else:
+                return Response({"error": "Not permitted to transition to this status"}, status=status.HTTP_403_FORBIDDEN)
+
+        elif user.groups.filter(name='HR').exists():
+            if current_status == 'hr_approval' and new_status == 'completed':
+                request_obj.transition_status(new_status)
+            else:
+                return Response({"error": "Not permitted to transition to this status"}, status=status.HTTP_403_FORBIDDEN)
+        
+        else:
+            return Response({"error": "Not authorized to update status"}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = InconvenienceRequestSerializer(request_obj)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-
-
-

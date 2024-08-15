@@ -34,6 +34,7 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         inconvenience_request_id = self.context.get('inconvenience_request_id')
+        print(inconvenience_request_id)
         
         # Retrieve the inconvenience request instance
         try:
