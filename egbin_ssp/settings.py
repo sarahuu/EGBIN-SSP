@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
+    'corsheaders',
 
     #apps
     'user',
@@ -63,7 +64,8 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
     'https://egbin-ssp-api-c8axfebjhacngsb4.eastus-01.azurewebsites.net',
-    # Add other allowed origins here...
+    'http://localhost:5173'
+,    # Add other allowed origins here...
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = ['*']

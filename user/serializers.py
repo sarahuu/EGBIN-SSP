@@ -4,9 +4,13 @@ from rest_framework import serializers
 from .models import User,Department
 
 class UserSerializer(serializers.ModelSerializer):
+    groups = serializers.SerializerMethodField()
     class Meta:
         model = User
-        fields = ('id', 'email', 'first_name', 'last_name', 'is_active', 'is_staff','department')
+        fields = ('id', 'email', 'first_name', 'last_name', 'is_active', 'is_staff','department','staff_id','groups')
+
+    def get_groups(self, obj):
+        return obj.groups.values_list('name', flat=True)
 
 
 class RegisterUserSerializer(serializers.ModelSerializer):
@@ -14,8 +18,8 @@ class RegisterUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id','email', 'password', 'first_name', 'last_name', 'department_id')
-        extra_kwargs = {'password': {'write_only': True}}
+        fields = ('id','email', 'password', 'first_name', 'last_name', 'department_id','staff_id')
+        extra_kwargs = {'password': {'write_only': True}, 'staff_id':{'required':False}}
 
     def create(self, validated_data):
         department_id = validated_data.pop('department_id')

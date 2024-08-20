@@ -35,7 +35,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
-    staff_id = models.CharField(null=True)
+    staff_id = models.CharField(null=True,blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=True)
 
