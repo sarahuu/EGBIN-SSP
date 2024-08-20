@@ -67,11 +67,13 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173'
 ,    # Add other allowed origins here...
 ]
+# CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = ['*']
 
 ROOT_URLCONF = 'egbin_ssp.urls'
-CSRF_TRUSTED_ORIGINS = ['https://egbin-ssp-api-c8axfebjhacngsb4.eastus-01.azurewebsites.net']
+CSRF_TRUSTED_ORIGINS = ['https://egbin-ssp-api-c8axfebjhacngsb4.eastus-01.azurewebsites.net','http://localhost:5173'
+]
 
 TEMPLATES = [
     {
