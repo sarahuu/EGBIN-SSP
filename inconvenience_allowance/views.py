@@ -111,7 +111,7 @@ class InconvenienceRequestView(APIView):
 
         if request.user.groups.filter(name='HR').exists():
             # HR can view all records
-            inconvenience_requests = InconvenienceRequest.objects.filter(status='draft')
+            inconvenience_requests = InconvenienceRequest.objects.all().exclude(status='draft')
         elif request.user.groups.filter(name='Line Managers').exists() or \
              request.user.groups.filter(name='Employees').exists():
             # Other roles can view only their department records
@@ -247,13 +247,6 @@ class InconvenienceRequestDetailView(APIView):
 
         inconvenience_request.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-
-
-
-
-
 
 
 
@@ -491,6 +484,31 @@ class InconvenienceRequestLineDetailView(APIView):
         # Employees cannot delete request lines
         return Response({"detail": "Not permitted to delete request lines."}, status=status.HTTP_403_FORBIDDEN)
     
+@extend_schema(tags=['Inconvenience Request Lines'])
+class InconvenienceRequestLineOwnView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="List Current User's Inconvenience Requests",
+        summary="List Current User's Inconvenience Requests",
+        description="List Current User's Inconvenience Requests",
+        responses={
+            200: InconvenienceRequestLineSerializer(many=True),
+            404: {
+                "application/json": {
+                    "type": "object",
+                    "properties": {
+                        "error": {"type": "string", "example": "User not found"}
+                    }
+                }
+            }
+
+        }
+    )
+    def get(self, request):
+        inconvenience_request_lines = InconvenienceRequestLine.objects.filter(employee=request.user.id).exclude(status='draft')
+        serializer = InconvenienceRequestLineSerializer(inconvenience_request_lines, many=True)
+        return Response(serializer.data)
 
 
 

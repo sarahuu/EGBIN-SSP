@@ -4,6 +4,7 @@ from .views import (
     InconvenienceRequestLineView,
     InconvenienceRequestDetailView,
     InconvenienceRequestLineDetailView,
+    InconvenienceRequestLineOwnView,
     TransitionStatusView,
     DayViewSet
 )
@@ -20,5 +21,7 @@ urlpatterns = [
     path('inconvenience-requests/<int:pk>/transition-status/', TransitionStatusView.as_view(), name='inconvenience-request-transition-status'),    path('inconvenience-request-lines/', InconvenienceRequestLineView.as_view(), name='inconvenience-request-line-list'),
     path('inconvenience-request-lines/', InconvenienceRequestLineView.as_view(), name='inconvenience-request-line-list'),
     path('inconvenience-request-lines/<int:pk>/', InconvenienceRequestLineDetailView.as_view(), name='inconvenience-request-line-detail'),
+    path('inconvenience-request-lines/own/', InconvenienceRequestLineOwnView.as_view(), name='inconvenience-request-line-own'),
+
 
 ]

@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status,viewsets
 from .models import User, Department
 from .serializers import UserSerializer, RegisterUserSerializer, DepartmentSerializer
+from rest_framework.permissions import IsAuthenticated
 from django.http import Http404
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -83,8 +84,31 @@ class UserView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
+@extend_schema(tags=['User Management'])
+class UserOwnView(APIView):
+    permission_classes = [IsAuthenticated]
 
 
+    @extend_schema(
+        tags=['User Management'],
+        summary="Get own user object",
+        description="Get own user object",
+        responses={
+            200: UserSerializer(),
+            404: {
+                "description": "User not found",
+                "content": {
+                    "application/json": {
+                        "example": {"error": "User not found"}
+                    }
+                }
+            }
+        }
+    )
+    def get(self, request, format=None):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+    
 
 
 
@@ -385,7 +409,18 @@ class MicrosoftTokenValidationView(APIView):
     )
 )
 class CustomTokenObtainPairView(TokenObtainPairView):
-    pass
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        refresh_token = response.data.get('refresh')
+        if refresh_token:
+            response.set_cookie(
+                key='refresh_token',
+                value=refresh_token,
+                httponly=True,
+                secure=False,  # Ensure it's only sent over HTTPS
+                samesite=None,  # Helps mitigate CSRF attacks
+            )
+        return response
 
 
 @extend_schema_view(
