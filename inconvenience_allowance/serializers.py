@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import InconvenienceRequest, InconvenienceRequestLine, Day
 from datetime import datetime
+import datetime as dt
 
 
 class DaySerializer(serializers.ModelSerializer):
@@ -32,9 +33,22 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
         }
 
 
+    def validate(self, data):
+        days = data.get('dates', [])
+
+        # Check each date in the list to ensure none have been booked with a non-draft status
+        for date in days:
+            # print(InconvenienceRequestLine.objects.filter(employee__id=data['employee']))
+            if InconvenienceRequestLine.objects.filter(
+                    employee=data['employee'],
+                    days__date=[datetime.strptime(date, '%Y-%m-%d').date()]  # Assumes booking_dates is a list field in the model
+            ):
+                raise serializers.ValidationError(f"You cannot book for {date} as you have already been booked for that day")
+ 
+        return data
+
     def create(self, validated_data):
         inconvenience_request_id = self.context.get('inconvenience_request_id')
-        print(inconvenience_request_id)
         
         # Retrieve the inconvenience request instance
         try:
@@ -106,6 +120,7 @@ class InconvenienceRequestSerializer(serializers.ModelSerializer):
             'updated_at': {'read_only': True},
             'status': {'read_only': True}
         }
+        
     
     def create(self, validated_data):
         request = self.context.get('request')
