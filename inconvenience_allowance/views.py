@@ -506,7 +506,7 @@ class InconvenienceRequestLineOwnView(APIView):
         }
     )
     def get(self, request):
-        inconvenience_request_lines = InconvenienceRequestLine.objects.filter(employee=request.user.id).exclude(status='draft')
+        inconvenience_request_lines = InconvenienceRequestLine.objects.filter(employee=request.user.id).exclude(inconvenience_request__status="draft")
         serializer = InconvenienceRequestLineSerializer(inconvenience_request_lines, many=True)
         return Response(serializer.data)
 
