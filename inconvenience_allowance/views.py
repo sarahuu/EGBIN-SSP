@@ -278,13 +278,13 @@ class InconvenienceRequestLineView(APIView):
         # Check for HR role
         if user.groups.filter(name='HR').exists():
             # HR can view all request lines
-            inconvenience_request_lines = InconvenienceRequestLine.objects.all().exclude(status='draft')
+            inconvenience_request_lines = InconvenienceRequestLine.objects.all().exclude(inconvenience_request__status='draft')
         
         # Check for Line Managers roles
         elif user.groups.filter(name='Line Managers').exists():
             # Filter request lines by department
 
-            inconvenience_request_lines = InconvenienceRequestLine.objects.filter(department=user.department).exclude(status="draft")
+            inconvenience_request_lines = InconvenienceRequestLine.objects.filter(department=user.department).exclude(inconvenience_request__status="draft")
         
         # Check for Department Manager roles
         elif user.groups.filter(name='Department Representatives').exists():
@@ -294,7 +294,7 @@ class InconvenienceRequestLineView(APIView):
         # Check for Employee role
         elif user.groups.filter(name='Employees').exists():
             # Filter request lines by department
-            inconvenience_request_lines = InconvenienceRequestLine.objects.filter(department=user.department).exclude(status="draft")
+            inconvenience_request_lines = InconvenienceRequestLine.objects.filter(department=user.department).exclude(inconvenience_request__status="draft")
         
         else:
             # If user role is not valid, return Forbidden response
