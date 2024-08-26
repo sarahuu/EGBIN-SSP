@@ -41,7 +41,7 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
             # print(InconvenienceRequestLine.objects.filter(employee__id=data['employee']))
             if InconvenienceRequestLine.objects.filter(
                     employee=data['employee'],
-                    days__date=[datetime.strptime(date, '%Y-%m-%d').date()]  # Assumes booking_dates is a list field in the model
+                    days__date=[date]  # Assumes booking_dates is a list field in the model
             ):
                 raise serializers.ValidationError(f"You cannot book for {date} as you have already been booked for that day")
 
