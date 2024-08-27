@@ -102,11 +102,6 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
         
         instance.save()
         return instance
-        
-
-
-
-
 
 
 class InconvenienceRequestSerializer(serializers.ModelSerializer):
@@ -132,3 +127,10 @@ class InconvenienceRequestSerializer(serializers.ModelSerializer):
 
         # Call super to handle the actual creation
         return super().create(validated_data)
+    
+
+class TransitionSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=InconvenienceRequest.STATUS_CHOICES)
+
+class ErrorResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField()

@@ -3,11 +3,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from .models import InconvenienceRequest, InconvenienceRequestLine, Day
-from .serializers import InconvenienceRequestSerializer,InconvenienceRequestLineSerializer, DaySerializer
+from .serializers import InconvenienceRequestSerializer,InconvenienceRequestLineSerializer, DaySerializer, TransitionSerializer, ErrorResponseSerializer
 from django.shortcuts import get_object_or_404
-from rest_framework.decorators import action
 from drf_spectacular.utils import extend_schema
-from .permissions import IsDepartmentRep, IsEmployee, IsHR, IsInDepartment, IsLineManager
 from rest_framework.exceptions import PermissionDenied
 from user.models import User
 
@@ -20,7 +18,7 @@ class DayViewSet(viewsets.ModelViewSet):
         operation_id="list_days",
         summary="Retrieve a list of days",
         description="Fetch all day records in the system.",
-        responses={200: DaySerializer(many=True)},
+        responses={200: DaySerializer(many=True), 400:ErrorResponseSerializer},
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
@@ -30,7 +28,7 @@ class DayViewSet(viewsets.ModelViewSet):
         summary="Create a new day",
         description="Create a new day record.",
         request=DaySerializer,
-        responses={201: DaySerializer},
+        responses={201: DaySerializer,400:ErrorResponseSerializer},
     )
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
@@ -522,8 +520,49 @@ class TransitionStatusView(APIView):
     @extend_schema(
         operation_id="Move an inconvenience request from stage to stage",
         summary="Move an inconvenience request from stage to stage",
-        description="Move an inconvenience request from stage to stage",
-        # request=InconvenienceRequestLineSerializer,
+        description=
+        """
+        Moves an inconvenience request from one stage to another within the workflow.
+
+        This function facilitates the transition of an inconvenience request through 
+        various stages, ensuring that each transition adheres to the predefined valid 
+        transitions. The stages are part of a structured workflow, and only certain 
+        transitions are allowed.
+
+        Stages:
+        -------
+        The possible stages in the workflow are:
+        - draft: The request is in draft state.
+        - submitted: The request has been submitted for approval.
+        - manager_approved: The request has been approved by the manager.
+        - work_done: The required work has been completed.
+        - hr_approval: The HR department is reviewing the request.
+        - completed: The request has been finalized and marked as completed.
+        - rejected: The request has been rejected.
+
+        Valid Transitions:
+        ------------------
+        The request can only move between stages based on the following rules:
+        - draft -> submitted
+        - submitted -> manager_approved, rejected
+        - manager_approved -> work_done
+        - work_done -> hr_approval
+        - hr_approval -> completed
+
+        Parameters:
+        -----------
+        id : int
+            The unique identifier of the inconvenience request to be moved.
+        status : str
+            The stage to which the request should be moved. Must be one of the 
+            valid stages as outlined above.
+        """
+
+        
+        
+        
+        ,
+        request=TransitionSerializer,
         responses={
             201: InconvenienceRequestLineSerializer,
             400: "Bad Request - Validation failed",
