@@ -9,6 +9,7 @@ from rest_framework.decorators import action
 from drf_spectacular.utils import extend_schema
 from .permissions import IsDepartmentRep, IsEmployee, IsHR, IsInDepartment, IsLineManager
 from rest_framework.exceptions import PermissionDenied
+from user.models import User
 
 @extend_schema(tags=['Days'])
 class DayViewSet(viewsets.ModelViewSet):
@@ -352,7 +353,12 @@ class InconvenienceRequestLineDetailView(APIView):
             return Response({"detail": "Not permitted to create a request line for this request."}, status=status.HTTP_403_FORBIDDEN)
         
         data = request.data
-        # data['inconvenience_request'] = inconvenience_request.id  # Link to the inconvenience request
+
+        # validate employee
+        employee = get_object_or_404(User, id=data["employee"])
+        if request.user.department != employee.department:
+            raise PermissionDenied(f"{employee.first_name} does not belong to your department")
+
 
         serializer = InconvenienceRequestLineSerializer(data=data, context={'inconvenience_request_id': inconvenience_request.id})
         if serializer.is_valid():
@@ -474,7 +480,7 @@ class InconvenienceRequestLineDetailView(APIView):
         if user.groups.filter(name='Department Representatives').exists() or \
         user.groups.filter(name='Line Managers').exists():
             # Check if the request line belongs to the user's department
-            if inconvenience_request_line.department == user.department:
+            if inconvenience_request_line.employee.department == user.department:
                 inconvenience_request_line.delete()
                 return Response(status=status.HTTP_204_NO_CONTENT)
             else:

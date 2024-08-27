@@ -34,16 +34,19 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
 
 
     def validate(self, data):
+
+        #validate date
         days = data.get('dates', [])
 
         # Check each date in the list to ensure none have been booked with a non-draft status
         for date in days:
-            # print(InconvenienceRequestLine.objects.filter(employee__id=data['employee']))
             if InconvenienceRequestLine.objects.filter(
                     employee=data['employee'],
                     days__date=date  # Assumes booking_dates is a list field in the model
             ):
                 raise serializers.ValidationError(f"{data['employee'].first_name} cannot be booked for {date} as he/she have already been booked for that day")
+        
+        #validate user
 
         return data
 
