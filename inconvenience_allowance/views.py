@@ -479,12 +479,8 @@ class InconvenienceRequestLineDetailView(APIView):
         
         if user.groups.filter(name='Department Representatives').exists() or \
         user.groups.filter(name='Line Managers').exists():
-            # Check if the request line belongs to the user's department
-            if inconvenience_request_line.employee.department == user.department:
-                inconvenience_request_line.delete()
-                return Response(status=status.HTTP_204_NO_CONTENT)
-            else:
-                return Response({"detail": "Not permitted to delete this request line."}, status=status.HTTP_403_FORBIDDEN)
+            inconvenience_request_line.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
         
         # Employees cannot delete request lines
         return Response({"detail": "Not permitted to delete request lines."}, status=status.HTTP_403_FORBIDDEN)
