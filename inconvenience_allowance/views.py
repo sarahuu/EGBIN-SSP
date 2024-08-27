@@ -108,16 +108,15 @@ class InconvenienceRequestView(APIView):
         }
     )
     def get(self, request):
-
-        if request.user.groups.filter(name='HR').exists():
+        if request.user.groups.filter(name='Department Representatives').exists():
+            inconvenience_requests = InconvenienceRequest.objects.filter(department=request.user.department)
+        elif request.user.groups.filter(name='HR').exists():
             # HR can view all records
             inconvenience_requests = InconvenienceRequest.objects.all().exclude(status='draft')
         elif request.user.groups.filter(name='Line Managers').exists() or \
              request.user.groups.filter(name='Employees').exists():
             # Other roles can view only their department records
             inconvenience_requests = InconvenienceRequest.objects.filter(department=request.user.department).exclude(status='draft')
-        elif request.user.groups.filter(name='Department Representatives').exists():
-            inconvenience_requests = InconvenienceRequest.objects.filter(department=request.user.department)
         else:
             return Response({'detail': 'Not permitted'}, status=status.HTTP_403_FORBIDDEN)
         
