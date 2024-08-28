@@ -15,10 +15,11 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
             required=False, write_only=True
         )
     days = DaySerializer(many=True, read_only=True)
+    status = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = InconvenienceRequestLine
-        fields = ['id', 'inconvenience_request', 'job_description', 'employee', 'days', 'no_of_weekend', 'no_of_ph', 'no_of_days', 'amount', 'response', 'response_time', 'attendance_status', 'created_at', 'dates']
+        fields = ['id', 'inconvenience_request', 'job_description', 'employee', 'days', 'no_of_weekend', 'no_of_ph', 'no_of_days', 'amount', 'response', 'response_time', 'attendance_status', 'created_at', 'dates', 'status']
 
         extra_kwargs = {
             'inconvenience_request':{'read_only':True},
@@ -31,6 +32,8 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
             'attendance_status': {'read_only': True},
             'created_at': {'read_only': True}
         }
+    def get_status(self, obj):
+        return obj.inconvenience_request.status if obj.inconvenience_request else None
 
 
     def validate(self, data):

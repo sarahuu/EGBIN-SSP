@@ -5,12 +5,21 @@ from .models import User,Department
 
 class UserSerializer(serializers.ModelSerializer):
     groups = serializers.SerializerMethodField()
+    department_name = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = User
-        fields = ('id', 'email', 'first_name', 'last_name', 'is_active', 'is_staff','department','staff_id','groups')
+        fields = ('id', 'email', 'first_name', 'last_name', 'is_active', 'is_staff','department','department_name','staff_id','groups')
+
+        extra_kwargs = {
+            'department_name':{'read_only':True},
+        }
 
     def get_groups(self, obj):
         return obj.groups.values_list('name', flat=True)
+    def get_department_name(self, obj):
+        return obj.department.name if obj.department else None
+
 
 
 class RegisterUserSerializer(serializers.ModelSerializer):
