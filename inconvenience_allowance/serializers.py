@@ -1,8 +1,6 @@
 from rest_framework import serializers
 from .models import InconvenienceRequest, InconvenienceRequestLine, Day
-from datetime import datetime
-import datetime as dt
-
+from egbin_ssp.exceptions import SerializerValidationException
 
 class DaySerializer(serializers.ModelSerializer):
     class Meta:
@@ -16,10 +14,11 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
         )
     days = DaySerializer(many=True, read_only=True)
     status = serializers.SerializerMethodField(read_only=True)
+    employee_name = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = InconvenienceRequestLine
-        fields = ['id', 'inconvenience_request', 'job_description', 'employee', 'days', 'no_of_weekend', 'no_of_ph', 'no_of_days', 'amount', 'response', 'response_time', 'attendance_status', 'created_at', 'dates', 'status']
+        fields = ['id', 'inconvenience_request', 'job_description', 'employee','employee_name', 'days', 'no_of_weekend', 'no_of_ph', 'no_of_days', 'amount', 'response', 'response_time', 'attendance_status', 'created_at', 'dates', 'status']
 
         extra_kwargs = {
             'inconvenience_request':{'read_only':True},
@@ -35,6 +34,10 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
     def get_status(self, obj):
         return obj.inconvenience_request.status if obj.inconvenience_request else None
 
+    def get_employee_name(self, obj):
+        if obj.employee:
+            return f"{obj.employee.first_name} {obj.employee.last_name}"
+        return None
 
     def validate(self, data):
 
@@ -43,13 +46,16 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
 
         # Check each date in the list to ensure none have been booked with a non-draft status
         for date in days:
-            if InconvenienceRequestLine.objects.filter(
-                    employee=data['employee'],
-                    days__date=date  # Assumes booking_dates is a list field in the model
-            ):
-                raise serializers.ValidationError(f"{data['employee'].first_name} cannot be booked for {date} as he/she have already been booked for that day")
-        
-        #validate user
+            # Filter for existing bookings
+            
+            bookings = InconvenienceRequestLine.objects.filter(
+                employee=data['employee'],
+                days__date=date  # Assumes days__date is the correct field to filter on
+            )
+            
+            if bookings.exists():  # Check if any bookings are found
+                message = f"{data['employee'].first_name} cannot be booked for {date} as they have already been booked for that day."
+                raise SerializerValidationException(message)
 
         return data
 

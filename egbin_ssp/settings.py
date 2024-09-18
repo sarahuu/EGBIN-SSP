@@ -70,7 +70,6 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173'
 ,    # Add other allowed origins here...
 ]
-# CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'authorization',
@@ -180,6 +179,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'egbin_ssp.exceptions.custom_exception_handler'
 }
 
 from datetime import timedelta
