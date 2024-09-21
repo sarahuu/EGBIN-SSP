@@ -1,11 +1,117 @@
 from rest_framework import serializers
 from .models import InconvenienceRequest, InconvenienceRequestLine, Day
 from egbin_ssp.exceptions import SerializerValidationException
+from django.shortcuts import get_object_or_404
+from user.models import User
+from rest_framework.exceptions import PermissionDenied
+
 
 class DaySerializer(serializers.ModelSerializer):
     class Meta:
         model = Day
         fields = '__all__'
+
+
+
+class BulkInconvenienceRequestLineSerializer(serializers.ListSerializer):
+    
+    def create_or_update_instance(self, validated_data, inconvenience_request):
+        validated_data['job_description'] = inconvenience_request.description
+        day_instances = validated_data.get('dates')
+
+        # Use `update_or_create` for single instance
+        instance, created = InconvenienceRequestLine.objects.update_or_create(
+            id=validated_data.get('id'),
+            defaults={
+                'inconvenience_request': inconvenience_request,
+                'employee': validated_data.get('employee'),
+                'job_description':inconvenience_request.description
+            }
+        )
+        instance.days.set(day_instances)  # Set the Many-to-Many field
+        instance.save()
+        return instance
+
+
+
+    def validate_data(self, data,creator,invalid_days:set, invalid_employees:list, booked_dates:list):
+        
+        #validate employee
+        employee = User.objects.get(id=data["employee"].id)
+        if employee and creator.department != employee.department:
+            invalid_employees.append(employee)
+            # raise PermissionDenied(f"{employee.first_name} does not belong to your department")
+
+        #validate dates
+        days = data.get('dates', [])
+        day_instances = []
+        for date in days:
+            try:
+                day_instance = Day.objects.get(date=date)
+                day_instances.append(day_instance)
+            except:
+                invalid_days.add(str(date))
+        
+            # Check each date in the list to ensure none have been booked with a non-draft status
+        for date in day_instances:
+            # Filter for existing bookings
+            bookings = InconvenienceRequestLine.objects.filter(
+                employee=data['employee'],
+                days=date  # Assumes days__date is the correct field to filter on
+            )
+            
+            if bookings.exists():  # Check if any bookings are found
+                message = f"{data['employee'].first_name} cannot be booked for {date.date} as they have already been booked for that day."
+                booked_dates.append(message)
+            data['dates'] = day_instances
+        return data
+
+    def create(self, validated_data):
+        inconvenience_request_id = self.context.get('inconvenience_request_id')
+        inconvenience_request = InconvenienceRequest.objects.get(id=inconvenience_request_id)
+        invalid_days = set()
+        invalid_employees = set()
+        booked_dates = []
+        error_list = []
+        if isinstance(validated_data, list):
+            # Bulk create list of instances
+            inconvenience_request_lines = []
+            for data in validated_data:
+                #validate data
+                self.validate_data(data,self.context.get('user'),invalid_days,invalid_employees,booked_dates)
+           
+            if invalid_days:
+                dates = ",".join(invalid_days)
+                message = f"Dates: {dates} are not available for reservation"
+                error_list.append(message)
+            if invalid_employees:
+                error_list.extend(invalid_employees)
+            if booked_dates:
+                error_list.extend(booked_dates)
+            
+            if error_list:
+                raise SerializerValidationException(detail=error_list,code=400)
+            for data in validated_data:
+                instance = self.create_or_update_instance(data, inconvenience_request)
+                inconvenience_request_lines.append(instance)
+            return inconvenience_request_lines
+        else:
+            self.validate_data(validated_data,self.context.get('user'),invalid_days,invalid_employees,booked_dates)
+            if invalid_days:
+                error_list.extend(invalid_days)
+            if invalid_employees:
+                error_list.extend(invalid_employees)
+            if booked_dates:
+                error_list.extend(booked_dates)
+            
+            if error_list:
+                raise SerializerValidationException(detail=error_list,code=400)
+
+            return self.create_or_update_instance(validated_data, inconvenience_request)
+
+
+
+
 
 class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
     dates = serializers.ListField(
@@ -19,7 +125,7 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
     class Meta:
         model = InconvenienceRequestLine
         fields = ['id', 'inconvenience_request', 'job_description', 'employee','employee_name', 'days', 'no_of_weekend', 'no_of_ph', 'no_of_days', 'amount', 'response', 'response_time', 'attendance_status', 'created_at', 'dates', 'status']
-
+        list_serializer_class = BulkInconvenienceRequestLineSerializer
         extra_kwargs = {
             'inconvenience_request':{'read_only':True},
             'job_description': {'required': False,'read_only':True},
@@ -38,83 +144,23 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
         if obj.employee:
             return f"{obj.employee.first_name} {obj.employee.last_name}"
         return None
-
-    def validate(self, data):
-
-        #validate date
-        days = data.get('dates', [])
-
-        # Check each date in the list to ensure none have been booked with a non-draft status
-        for date in days:
-            # Filter for existing bookings
-            
-            bookings = InconvenienceRequestLine.objects.filter(
-                employee=data['employee'],
-                days__date=date  # Assumes days__date is the correct field to filter on
-            )
-            
-            if bookings.exists():  # Check if any bookings are found
-                message = f"{data['employee'].first_name} cannot be booked for {date} as they have already been booked for that day."
-                raise SerializerValidationException(message)
-
-        return data
-
-    def create(self, validated_data):
-        inconvenience_request_id = self.context.get('inconvenience_request_id')
-        
-        # Retrieve the inconvenience request instance
-        try:
-            inconvenience_request = InconvenienceRequest.objects.get(id=inconvenience_request_id)
-            validated_data['inconvenience_request'] = inconvenience_request
-        except InconvenienceRequest.DoesNotExist:
-            raise serializers.ValidationError("Inconvenience request does not exist.")
-        
-        days_data = validated_data.pop('dates', [])
-        try:
-            day_instances = [Day.objects.get(date=date) for date in days_data]
-        except:
-            raise serializers.ValidationError("Some of the provided dates do not correspond to existing days.")
-
-
-        validated_data['job_description'] = validated_data['inconvenience_request'].description
-
-        inconvenience_request_line = InconvenienceRequestLine.objects.create(**validated_data)
-        inconvenience_request_line.days.set(day_instances)
-                
-        inconvenience_request_line.save()
-        return inconvenience_request_line
-    
-
-    def update(self, instance, validated_data):
-        days_data = validated_data.pop('dates', [])
-        
-        # Update fields on the instance
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        
-        # Handle days update
-        if days_data is not None:
+    def to_internal_value(self, data):
+        # Validate the employee field
+        employee_id = data.get('employee')
+        if employee_id:
             try:
-                day_instances = [Day.objects.get(date=date) for date in days_data]
-            except:
-                raise serializers.ValidationError("Some of the provided dates do not correspond to existing days.")
-                    
-            instance.days.set(day_instances)
+                pos = User.objects.get(pk=employee_id)
+            except User.DoesNotExist:
+                # Customize the error message here
+                raise SerializerValidationException(f"Employee with id {employee_id} does not exist. Contact Support")
+    
+        validated_data = super().to_internal_value(data)
+        return validated_data
 
-            # Retrieve the existing days
-            current_days = set(instance.days.values_list('date', flat=True))
-            days_to_remove = Day.objects.filter(date__in=current_days)
-            
-            # Update the days relationship
-            instance.days.remove(*days_to_remove) #remove all existing days
-            instance.days.set(day_instances) #add all new days
-        
-        instance.save()
-        return instance
 
 
 class InconvenienceRequestSerializer(serializers.ModelSerializer):
-    lines = InconvenienceRequestLineSerializer(many=True, read_only=True)
+    lines = InconvenienceRequestLineSerializer(many=True,read_only=True)
 
     class Meta:
         model = InconvenienceRequest
@@ -142,4 +188,5 @@ class TransitionSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=InconvenienceRequest.STATUS_CHOICES)
 
 class ErrorResponseSerializer(serializers.Serializer):
-    detail = serializers.CharField()
+    status_code = serializers.IntegerField()
+    errors = serializers.ListField()

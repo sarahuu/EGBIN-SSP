@@ -23,5 +23,4 @@ urlpatterns = [
     path('inconvenience-request-lines/<int:pk>/', InconvenienceRequestLineDetailView.as_view(), name='inconvenience-request-line-detail'),
     path('inconvenience-request-lines/own/', InconvenienceRequestLineOwnView.as_view(), name='inconvenience-request-line-own'),
 
-
 ]
