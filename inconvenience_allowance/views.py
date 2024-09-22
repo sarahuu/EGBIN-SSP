@@ -493,22 +493,20 @@ class TransitionStatusView(APIView):
         if user.groups.filter(name='Department Representatives').exists():
             if current_status == 'draft' and new_status == 'submitted':
                 request_obj.transition_status(new_status)
-            elif current_status == 'manager_approved' and new_status == 'work_done':
-                request_obj.transition_status(new_status)
             else:
                 raise SerializerValidationException("Not permitted to transition to this status",code=403)
         
         elif user.groups.filter(name='Line Managers').exists():
             if current_status == 'submitted' and new_status == 'manager_approved':
                 request_obj.transition_status(new_status)
-            elif current_status == 'work_done' and new_status == 'hr_approval':
+            elif current_status == 'manager_approved' and new_status == 'work_done':
                 request_obj.transition_status(new_status)
             else:
                 raise SerializerValidationException("Not permitted to transition to this status",code=403)
 
         elif user.groups.filter(name='HR').exists():
-            if current_status == 'hr_approval' and new_status == 'completed':
-                request_obj.transition_status(new_status)
+            if current_status == 'work_done' and new_status == 'hr_approval':
+                request_obj.transition_status('completed')
             else:
                 raise SerializerValidationException("Not permitted to transition to this status",code=403)
         
