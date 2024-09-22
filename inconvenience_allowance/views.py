@@ -506,6 +506,7 @@ class TransitionStatusView(APIView):
 
         elif user.groups.filter(name='HR').exists():
             if current_status == 'work_done' and new_status == 'hr_approval':
+                request_obj.transition_status(new_status)
                 request_obj.transition_status('completed')
             else:
                 raise SerializerValidationException("Not permitted to transition to this status",code=403)
