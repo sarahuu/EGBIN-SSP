@@ -60,7 +60,7 @@ class InconvenienceRequest(models.Model):
     def transition_status(self, new_status):
         valid_transitions = {
             'draft': ['submitted'],
-            'submitted': ['manager_approved','rejected'],
+            'submitted': ['manager_approved','rejected','draft'],
             'manager_approved': ['work_done'],
             'work_done': ['hr_approval'],
             'hr_approval': ['completed'],

@@ -499,6 +499,8 @@ class TransitionStatusView(APIView):
         elif user.groups.filter(name='Line Managers').exists():
             if current_status == 'submitted' and new_status == 'manager_approved':
                 request_obj.transition_status(new_status)
+            elif current_status == 'submitted' and new_status == 'draft':
+                request_obj.transition_status(new_status)
             elif current_status == 'manager_approved' and new_status == 'work_done':
                 request_obj.transition_status(new_status)
             else:
