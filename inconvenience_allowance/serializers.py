@@ -37,7 +37,7 @@ class BulkInconvenienceRequestLineSerializer(serializers.ListSerializer):
 
     def validate_data(self, data,creator,invalid_days:set, invalid_employees:list, booked_dates:list):
         #check if line exists
-        line = InconvenienceRequestLine.objects.filter(id=data['id']).first()
+        line = InconvenienceRequestLine.objects.filter(id=data.get('id',None)).first()
 
         
         #validate employee
