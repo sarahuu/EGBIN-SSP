@@ -312,7 +312,6 @@ class InconvenienceRequestLineDetailView(APIView):
         data = request.data
         if isinstance(data, list):
             serializer = InconvenienceRequestLineSerializer(data=data, context={'inconvenience_request_id': inconvenience_request.id,'user':request.user}, many=True)
-            print(data)
         else:
             serializer = InconvenienceRequestLineSerializer(data=data, context={'inconvenience_request_id': inconvenience_request.id, 'user':request.user})
         if serializer.is_valid():

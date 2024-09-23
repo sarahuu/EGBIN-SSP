@@ -16,7 +16,8 @@ class DaySerializer(serializers.ModelSerializer):
 class BulkInconvenienceRequestLineSerializer(serializers.ListSerializer):
     
     def create_or_update_instance(self, validated_data, inconvenience_request):
-        validated_data['job_description'] = inconvenience_request.description
+        if 'job_description' in validated_data:
+            inconvenience_request.description = validated_data['job_description']
         day_instances = validated_data.get('dates')
 
         # Use `update_or_create` for single instance
@@ -25,7 +26,7 @@ class BulkInconvenienceRequestLineSerializer(serializers.ListSerializer):
             defaults={
                 'inconvenience_request': inconvenience_request,
                 'employee': validated_data.get('employee'),
-                'job_description':inconvenience_request.description
+                'job_description':inconvenience_request.description,
             }
         )
         instance.days.set(day_instances)  # Set the Many-to-Many field
@@ -35,6 +36,9 @@ class BulkInconvenienceRequestLineSerializer(serializers.ListSerializer):
 
 
     def validate_data(self, data,creator,invalid_days:set, invalid_employees:list, booked_dates:list):
+        #check if line exists
+        line = InconvenienceRequestLine.objects.filter(id=data['id']).first()
+
         
         #validate employee
         employee = User.objects.get(id=data["employee"].id)
@@ -55,14 +59,20 @@ class BulkInconvenienceRequestLineSerializer(serializers.ListSerializer):
             # Check each date in the list to ensure none have been booked with a non-draft status
         for date in day_instances:
             # Filter for existing bookings
-            bookings = InconvenienceRequestLine.objects.filter(
+            
+            #check if line exists and has that date
+            if line and InconvenienceRequestLine.objects.filter(id=data['id'],employee=data['employee'],days=date).first():
+                pass
+            else:
+                bookings = InconvenienceRequestLine.objects.filter(
                 employee=data['employee'],
                 days=date  # Assumes days__date is the correct field to filter on
             )
             
-            if bookings.exists():  # Check if any bookings are found
-                message = f"{data['employee'].first_name} cannot be booked for {date.date} as they have already been booked for that day."
-                booked_dates.append(message)
+                if bookings.exists():  # Check if any bookings are found
+                    #first of all check if it is update or create
+                    message = f"{data['employee'].first_name} cannot be booked for {date.date} as they have already been booked for that day."
+                    booked_dates.append(message)
             data['dates'] = day_instances
         return data
 
@@ -147,6 +157,7 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         # Validate the employee field
         employee_id = data.get('employee')
+        line_id = data.get('id')
         if employee_id:
             try:
                 pos = User.objects.get(pk=employee_id)
@@ -155,6 +166,8 @@ class InconvenienceRequestLineSerializer(serializers.ModelSerializer):
                 raise SerializerValidationException(f"Employee with id {employee_id} does not exist. Contact Support")
     
         validated_data = super().to_internal_value(data)
+        if line_id:
+            validated_data['id'] = line_id
         return validated_data
 
 
